@@ -1,0 +1,49 @@
+package com.example.swiggy_test.ui.detailScreen
+
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.swiggy_test.data.model.PokemonDetailsResponse
+import com.example.swiggy_test.domain.PokemonRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+sealed interface PokemonDetailUiState{
+    object Loading: PokemonDetailUiState
+    data class Success(val pokemon: PokemonDetailsResponse): PokemonDetailUiState
+    data class Error(val message:String): PokemonDetailUiState
+}
+
+@HiltViewModel
+class PokemonDetailViewmodel @Inject constructor (
+    private val repository: PokemonRepository,
+    savedStateHandle: SavedStateHandle
+): ViewModel() {
+
+    private val _uiState = MutableStateFlow<PokemonDetailUiState>(PokemonDetailUiState.Loading)
+    val uiState: StateFlow<PokemonDetailUiState> = _uiState.asStateFlow()
+
+    private val pokemonName: String = savedStateHandle.get<String>("name") ?: "ivysaur"
+
+    init {
+        loadDetails()
+    }
+
+    fun loadDetails(){
+        viewModelScope.launch {
+            _uiState.value = PokemonDetailUiState.Loading
+            repository.getPokemonDetails(pokemonName = pokemonName)
+                .onSuccess { pokemon->
+                    _uiState.value = PokemonDetailUiState.Success(pokemon)
+                }
+                .onFailure { error ->
+                    _uiState.value = PokemonDetailUiState.Error(error.localizedMessage ?:
+                    "Failed to load")
+                }
+        }
+    }
+}
